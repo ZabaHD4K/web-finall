@@ -5,9 +5,9 @@ import { useState, useEffect } from "react";
 export default function DashboardPage() {
   const [activeSection, setActiveSection] = useState<string>("Clientes"); // Sección activa
   const [showAddClientModal, setShowAddClientModal] = useState(false); // Modal para añadir cliente
-  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false); // Modal para añadir material (pedido)
+  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false); // Modal para añadir pedido
   const [clients, setClients] = useState<any[]>([]); // Estado para clientes
-  const [materials, setMaterials] = useState<any[]>([]); // Estado para materiales (pedidos)
+  const [materials, setMaterials] = useState<any[]>([]); // Estado para pedidos
   const [loading, setLoading] = useState(false); // Estado de carga
   const [error, setError] = useState<string | null>(null); // Estado de error
   const [userId, setUserId] = useState<string | null>(null); // ID del usuario autenticado
@@ -190,8 +190,13 @@ export default function DashboardPage() {
       return;
     }
 
+    if (!newMaterial.name.trim()) {
+      alert("El nombre del material no puede estar vacío.");
+      return;
+    }
+
     const materialData = {
-      name: newMaterial.name,
+      name: newMaterial.name.trim(),
       userId: userId, // Asignar el ID del usuario al pedido
     };
 
@@ -206,7 +211,8 @@ export default function DashboardPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Error al añadir el pedido.");
+        const errorData = await response.json();
+        throw new Error(`Error ${response.status}: ${errorData.message || "No se pudo añadir el pedido"}`);
       }
 
       const data = await response.json();
@@ -219,6 +225,7 @@ export default function DashboardPage() {
       // Refrescar la lista de pedidos
       fetchMaterials();
     } catch (error) {
+      console.error("Error al añadir el pedido:", error);
       alert(`Hubo un problema al añadir el pedido: ${error.message}`);
     }
   };
@@ -240,7 +247,10 @@ export default function DashboardPage() {
                   <li key={client._id}>
                     <strong>{client.name}</strong>
                     <p>CIF: {client.cif}</p>
-                    <p>Dirección: {client.address.street}, {client.address.number}, {client.address.city}, {client.address.province}</p>
+                    <p>
+                      Dirección: {client.address.street}, {client.address.number},{" "}
+                      {client.address.city}, {client.address.province}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -334,7 +344,112 @@ export default function DashboardPage() {
         {renderSection()}
       </main>
 
-      {/* Modal para añadir material (pedido) */}
+      {/* Modal para añadir cliente */}
+      {showAddClientModal && (
+        <div style={modalStyles.overlay}>
+          <div style={modalStyles.modal}>
+            <h2>Añadir Cliente</h2>
+            <form onSubmit={handleAddClient}>
+              <input
+                type="text"
+                name="name"
+                value={newClient.name}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, name: e.target.value })
+                }
+                placeholder="Nombre"
+                required
+                style={modalStyles.input}
+              />
+              <input
+                type="text"
+                name="cif"
+                value={newClient.cif}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, cif: e.target.value })
+                }
+                placeholder="CIF"
+                required
+                style={modalStyles.input}
+              />
+              <input
+                type="text"
+                name="street"
+                value={newClient.street}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, street: e.target.value })
+                }
+                placeholder="Calle"
+                required
+                style={modalStyles.input}
+              />
+              <input
+                type="text"
+                name="number"
+                value={newClient.number}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, number: e.target.value })
+                }
+                placeholder="Número"
+                required
+                style={modalStyles.input}
+              />
+              <input
+                type="text"
+                name="postal"
+                value={newClient.postal}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, postal: e.target.value })
+                }
+                placeholder="Código Postal"
+                required
+                style={modalStyles.input}
+              />
+              <input
+                type="text"
+                name="city"
+                value={newClient.city}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, city: e.target.value })
+                }
+                placeholder="Ciudad"
+                required
+                style={modalStyles.input}
+              />
+              <input
+                type="text"
+                name="province"
+                value={newClient.province}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, province: e.target.value })
+                }
+                placeholder="Provincia"
+                required
+                style={modalStyles.input}
+              />
+              <button
+                type="submit"
+                style={{
+                  ...modalStyles.button,
+                  backgroundColor: "#0070f3",
+                  color: "#fff",
+                }}
+              >
+                Guardar Cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddClientModal(false)}
+                style={modalStyles.button}
+              >
+                Cancelar
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para añadir pedido */}
       {showAddMaterialModal && (
         <div style={modalStyles.overlay}>
           <div style={modalStyles.modal}>
@@ -344,7 +459,9 @@ export default function DashboardPage() {
                 type="text"
                 name="name"
                 value={newMaterial.name}
-                onChange={(e) => setNewMaterial({ name: e.target.value })}
+                onChange={(e) =>
+                  setNewMaterial({ ...newMaterial, name: e.target.value })
+                }
                 placeholder="Nombre del material"
                 required
                 style={modalStyles.input}
