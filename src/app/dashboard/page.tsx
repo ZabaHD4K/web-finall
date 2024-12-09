@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function DashboardPage() {
   const [activeSection, setActiveSection] = useState<string>("Clientes"); // Sección activa
   const [showAddClientModal, setShowAddClientModal] = useState(false); // Modal para añadir cliente
+  const [clients, setClients] = useState<any[]>([]); // Estado para almacenar los clientes
+  const [loading, setLoading] = useState(false); // Estado de carga
+  const [error, setError] = useState<string | null>(null); // Estado de error
 
   // Datos del formulario para cliente
   const [newClient, setNewClient] = useState({
@@ -17,6 +20,46 @@ export default function DashboardPage() {
     province: "",
   });
 
+  // Cargar los clientes desde la API
+  const fetchClients = async () => {
+    setLoading(true);
+    setError(null);
+
+    const token = localStorage.getItem("jwt");
+
+    if (!token) {
+      alert("No se ha encontrado el token de autenticación.");
+      return;
+    }
+
+    try {
+      const response = await fetch("https://bildy-rpmaya.koyeb.app/api/client", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Autenticación con el token
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudieron cargar los clientes.");
+      }
+
+      const data = await response.json();
+      setClients(data);
+    } catch (err) {
+      setError("Error al obtener los clientes. Intenta nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "Clientes") {
+      fetchClients(); // Cargar los clientes al mostrar la sección
+    }
+  }, [activeSection]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewClient((prev) => ({
@@ -28,7 +71,6 @@ export default function DashboardPage() {
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Obtener el token del localStorage
     const token = localStorage.getItem("jwt");
 
     if (!token) {
@@ -36,58 +78,46 @@ export default function DashboardPage() {
       return;
     }
 
-    // Verificar que los campos de número y postal son válidos
     const number = parseInt(newClient.number);
     const postal = parseInt(newClient.postal);
 
-    // Validar que los campos numéricos sean válidos
     if (isNaN(number) || isNaN(postal)) {
       alert("El número o el código postal no son válidos.");
       return;
     }
 
-    // Verificar el formato del cif (esto depende de la API, por ejemplo, longitud mínima)
     if (newClient.cif.length < 9) {
       alert("El CIF debe tener al menos 9 caracteres.");
       return;
     }
 
-    console.log("Datos del cliente a añadir:", newClient);
-
-    // Formato del cuerpo según la documentación de la API
     const clientData = {
       name: newClient.name,
       cif: newClient.cif,
       address: {
         street: newClient.street,
-        number: number, // Aseguramos que el número es un número
-        postal: postal, // Aseguramos que el código postal es un número
+        number: number,
+        postal: postal,
         city: newClient.city,
         province: newClient.province,
       },
     };
 
     try {
-      // Realizamos la solicitud POST a la URL correcta
       const response = await fetch("https://bildy-rpmaya.koyeb.app/api/client", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Autenticación con el token
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(clientData), // Enviar los datos del cliente
+        body: JSON.stringify(clientData),
       });
 
-      // Verificamos si la respuesta fue exitosa
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error de la API:", errorData); // Mostramos los detalles de la respuesta de error
-        throw new Error(`Error ${response.status}: ${errorData.message || "Error desconocido"}`);
+        throw new Error("Error al añadir el cliente.");
       }
 
       const data = await response.json();
-      console.log("Cliente añadido exitosamente:", data);
-
       alert("Cliente añadido con éxito.");
       setShowAddClientModal(false);
       setNewClient({
@@ -99,19 +129,35 @@ export default function DashboardPage() {
         city: "",
         province: "",
       });
+
+      // Refrescar la lista de clientes
+      fetchClients();
     } catch (error) {
-      console.error("Error al añadir cliente:", error);
       alert(`Hubo un problema al añadir el cliente: ${error.message}`);
     }
   };
 
-  // Contenido dinámico basado en la sección activa
   const renderSection = () => {
     switch (activeSection) {
       case "Clientes":
         return (
           <div>
             <h2>Lista de Clientes</h2>
+            {loading ? (
+              <p>Cargando clientes...</p>
+            ) : error ? (
+              <p>{error}</p>
+            ) : (
+              <ul>
+                {clients.map((client) => (
+                  <li key={client._id}>
+                    <strong>{client.name}</strong>
+                    <p>CIF: {client.cif}</p>
+                    <p>Dirección: {client.address.street}, {client.address.number}, {client.address.city}, {client.address.province}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
             <button
               onClick={() => setShowAddClientModal(true)}
               style={{
