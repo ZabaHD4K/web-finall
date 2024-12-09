@@ -302,6 +302,10 @@ export default function DashboardPage() {
             </button>
           </div>
         );
+      case "Proyectos":
+        return <ProjectsSection />;
+      case "Albaranes":
+        return <DeliveryNotesSection />;
       default:
         return <h2>Seleccione una sección</h2>;
     }
@@ -490,6 +494,359 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+const ProjectsSection = () => {
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    projectCode: "",
+    email: "",
+    street: "",
+    number: "",
+    postal: "",
+    city: "",
+    province: "",
+    code: "",
+    clientId: "",
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const token = localStorage.getItem("jwt");
+
+    if (!token) {
+      alert("No se ha encontrado el token de autenticación.");
+      return;
+    }
+
+    try {
+      const response = await fetch("https://bildy-rpmaya.koyeb.app/api/project", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          projectCode: formData.projectCode,
+          email: formData.email,
+          address: {
+            street: formData.street,
+            number: formData.number,
+            postal: formData.postal,
+            city: formData.city,
+            province: formData.province,
+          },
+          code: formData.code,
+          clientId: formData.clientId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error al añadir el proyecto. Código de error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Project added:', data);
+      alert("Proyecto añadido con éxito.");
+      setShowForm(false);
+      setFormData({
+        name: "",
+        projectCode: "",
+        email: "",
+        street: "",
+        number: "",
+        postal: "",
+        city: "",
+        province: "",
+        code: "",
+        clientId: "",
+      });
+    } catch (error) {
+      alert(`Hubo un problema al añadir el proyecto: ${error.message}`);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Proyectos</h2>
+      <button
+        onClick={() => setShowForm(true)}
+        style={{
+          backgroundColor: "#0070f3",
+          color: "#fff",
+          border: "none",
+          padding: "10px",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
+      >
+        Añadir Proyectos
+      </button>
+      {showForm && (
+        <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
+          <input
+            type="text"
+            name="name"
+            placeholder="Nombre del proyecto"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="projectCode"
+            placeholder="Identificador de proyecto"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="street"
+            placeholder="Calle"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="number"
+            name="number"
+            placeholder="Número"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="postal"
+            placeholder="Código postal"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="city"
+            placeholder="Ciudad"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="province"
+            placeholder="Provincia"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="code"
+            placeholder="Código interno del proyecto"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="clientId"
+            placeholder="ID del cliente"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <button
+            type="submit"
+            style={{
+              ...modalStyles.button,
+              backgroundColor: "#0070f3",
+              color: "#fff",
+            }}
+          >
+            Enviar
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(false)}
+            style={modalStyles.button}
+          >
+            Cancelar
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+const DeliveryNotesSection = () => {
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    clientId: "",
+    projectId: "",
+    format: "",
+    material: "",
+    hours: 0,
+    description: "",
+    workdate: "",
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const token = localStorage.getItem("jwt");
+
+    if (!token) {
+      alert("No se ha encontrado el token de autenticación.");
+      return;
+    }
+
+    try {
+      const response = await fetch("https://bildy-rpmaya.koyeb.app/api/deliverynote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error al añadir el albarán. Código de error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Delivery note added:', data);
+      alert("Albarán añadido con éxito.");
+      setShowForm(false);
+      setFormData({
+        clientId: "",
+        projectId: "",
+        format: "",
+        material: "",
+        hours: 0,
+        description: "",
+        workdate: "",
+      });
+    } catch (error) {
+      alert(`Hubo un problema al añadir el albarán: ${error.message}`);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Albaranes</h2>
+      <button
+        onClick={() => setShowForm(true)}
+        style={{
+          backgroundColor: "#0070f3",
+          color: "#fff",
+          border: "none",
+          padding: "10px",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
+      >
+        Añadir Albarán
+      </button>
+      {showForm && (
+        <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
+          <input
+            type="text"
+            name="clientId"
+            placeholder="ID del cliente"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="projectId"
+            placeholder="ID del proyecto"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <select
+            name="format"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          >
+            <option value="">Seleccionar formato</option>
+            <option value="material">Material</option>
+            <option value="hours">Horas</option>
+          </select>
+          <input
+            type="text"
+            name="material"
+            placeholder="Tipo de material"
+            onChange={handleChange}
+            style={modalStyles.input}
+          />
+          <input
+            type="number"
+            name="hours"
+            placeholder="Horas"
+            onChange={handleChange}
+            style={modalStyles.input}
+          />
+          <input
+            type="text"
+            name="description"
+            placeholder="Descripción"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <input
+            type="date"
+            name="workdate"
+            placeholder="Fecha de trabajo"
+            onChange={handleChange}
+            required
+            style={modalStyles.input}
+          />
+          <button
+            type="submit"
+            style={{
+              ...modalStyles.button,
+              backgroundColor: "#0070f3",
+              color: "#fff",
+            }}
+          >
+            Enviar
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(false)}
+            style={modalStyles.button}
+          >
+            Cancelar
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
 
 const styles = {
   container: {
