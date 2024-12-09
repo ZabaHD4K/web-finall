@@ -1,17 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState<string | null>(null);
-  const [activeMenu, setActiveMenu] = useState<string>("Clientes");
-  const [clients, setClients] = useState<any[]>([]); // Estado para clientes
-  const [loading, setLoading] = useState<boolean>(false); // Estado de carga
-  const [error, setError] = useState<string | null>(null); // Estado de errores
+  const [activeSection, setActiveSection] = useState<string>("Clientes"); // Sección activa
+  const [showAddClientModal, setShowAddClientModal] = useState(false); // Modal para añadir cliente
 
-  // Estado para formulario de nuevo cliente
+  // Datos del formulario para cliente
   const [newClient, setNewClient] = useState({
     name: "",
     cif: "",
@@ -19,60 +14,9 @@ export default function DashboardPage() {
     number: "",
     postal: "",
     city: "",
-    province: ""
+    province: "",
   });
 
-  // Verificar si el usuario está autenticado
-  useEffect(() => {
-    const token = localStorage.getItem("jwt");
-    const userEmail = localStorage.getItem("username");
-
-    if (!token || !userEmail) {
-      router.push("/login"); // Redirige al login si no está autenticado
-    } else {
-      setUsername(userEmail); // Establece el nombre de usuario
-    }
-  }, [router]);
-
-  // Obtener clientes de la API
-  useEffect(() => {
-    if (activeMenu === "Clientes") {
-      setLoading(true);
-      setError(null);
-
-      const token = localStorage.getItem("jwt");
-
-      fetch("https://bildy-rpmaya.koyeb.app/api/client", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(
-              `Error ${response.status}: ${
-                response.statusText || "No se pudo obtener los datos"
-              }`
-            );
-          }
-          return response.json();
-        })
-        .then((data) => {
-          setClients(data); // Guarda los clientes en el estado
-        })
-        .catch((err) => {
-          console.error(err);
-          setError("No se pudieron cargar los clientes. Intenta nuevamente.");
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }
-  }, [activeMenu]);
-
-  // Función para manejar el cambio en los inputs del formulario
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewClient((prev) => ({
@@ -81,44 +25,71 @@ export default function DashboardPage() {
     }));
   };
 
-  // Función para manejar el envío del formulario
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
 
+    // Obtener el token del localStorage
     const token = localStorage.getItem("jwt");
 
-    fetch("https://bildy-rpmaya.koyeb.app/api/client", {
-      method: "POST",
-      headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
+    if (!token) {
+      alert("No se ha encontrado el token de autenticación.");
+      return;
+    }
+
+    // Verificar que los campos de número y postal son válidos
+    const number = parseInt(newClient.number);
+    const postal = parseInt(newClient.postal);
+
+    // Validar que los campos numéricos sean válidos
+    if (isNaN(number) || isNaN(postal)) {
+      alert("El número o el código postal no son válidos.");
+      return;
+    }
+
+    // Verificar el formato del cif (esto depende de la API, por ejemplo, longitud mínima)
+    if (newClient.cif.length < 9) {
+      alert("El CIF debe tener al menos 9 caracteres.");
+      return;
+    }
+
+    console.log("Datos del cliente a añadir:", newClient);
+
+    // Formato del cuerpo según la documentación de la API
+    const clientData = {
       name: newClient.name,
       cif: newClient.cif,
       address: {
         street: newClient.street,
-        number: newClient.number,
-        postal: newClient.postal,
+        number: number, // Aseguramos que el número es un número
+        postal: postal, // Aseguramos que el código postal es un número
         city: newClient.city,
-        province: newClient.province
-      }
-      }),
-    })
-      .then((response) => {
+        province: newClient.province,
+      },
+    };
+
+    try {
+      // Realizamos la solicitud POST a la URL correcta
+      const response = await fetch("https://bildy-rpmaya.koyeb.app/api/client", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Autenticación con el token
+        },
+        body: JSON.stringify(clientData), // Enviar los datos del cliente
+      });
+
+      // Verificamos si la respuesta fue exitosa
       if (!response.ok) {
-        throw new Error(
-        `Error ${response.status}: ${
-          response.statusText || "No se pudo agregar el cliente"
-        }`
-        );
+        const errorData = await response.json();
+        console.error("Error de la API:", errorData); // Mostramos los detalles de la respuesta de error
+        throw new Error(`Error ${response.status}: ${errorData.message || "Error desconocido"}`);
       }
-      return response.json();
-      })
-      .then((data) => {
-      setClients((prevClients) => [...prevClients, data]); // Añade el nuevo cliente al estado
+
+      const data = await response.json();
+      console.log("Cliente añadido exitosamente:", data);
+
+      alert("Cliente añadido con éxito.");
+      setShowAddClientModal(false);
       setNewClient({
         name: "",
         cif: "",
@@ -126,77 +97,92 @@ export default function DashboardPage() {
         number: "",
         postal: "",
         city: "",
-        province: ""
-      }); // Resetea el formulario
-      })
-      .catch((err) => {
-      console.error(err);
-      setError("No se pudo agregar el cliente. Intenta nuevamente.");
-      })
-      .finally(() => {
-      setLoading(false);
+        province: "",
       });
+    } catch (error) {
+      console.error("Error al añadir cliente:", error);
+      alert(`Hubo un problema al añadir el cliente: ${error.message}`);
+    }
   };
 
-  // Contenido dinámico basado en el menú seleccionado
-  const renderContent = () => {
-    switch (activeMenu) {
+  // Contenido dinámico basado en la sección activa
+  const renderSection = () => {
+    switch (activeSection) {
       case "Clientes":
-        if (loading) return <p>Cargando clientes...</p>;
-        if (error) return <p>{error}</p>;
-        if (clients.length === 0) return <p>No hay clientes disponibles.</p>;
-
         return (
-          <div style={styles.clientsContainer}>
-            {/* Lista de clientes */}
-            <ul style={styles.clientList}>
-              {clients.map((client) => (
-                <li key={client._id} style={styles.clientItem}>
-                  <h3>{client.name}</h3>
-                  <p>
-                    CIF: {client.cif}
-                    <br />
-                    Dirección: {client.address.street}, {client.address.number},{" "}
-                    {client.address.postal} {client.address.city},{" "}
-                    {client.address.province}
-                    <br />
-                    Proyectos Activos: {client.activeProjects}
-                    <br />
-                    Albaranes Pendientes: {client.pendingDeliveryNotes}
-                  </p>
-                  {client.logo && (
-                    <img
-                      src={client.logo}
-                      alt={`Logo de ${client.name}`}
-                      style={styles.clientLogo}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-
-            {/* Botón para añadir cliente */}
+          <div>
+            <h2>Lista de Clientes</h2>
             <button
-              onClick={() => setActiveMenu("Añadir Cliente")}
-              style={styles.addButton}
+              onClick={() => setShowAddClientModal(true)}
+              style={{
+                backgroundColor: "#0070f3",
+                color: "#fff",
+                border: "none",
+                padding: "10px",
+                borderRadius: "5px",
+                cursor: "pointer",
+              }}
             >
               Añadir Cliente
             </button>
           </div>
         );
+      case "Pedidos":
+        return <h2>Lista de Pedidos</h2>;
+      case "Proyectos":
+        return <h2>Lista de Proyectos</h2>;
+      case "Albaranes":
+        return <h2>Lista de Albaranes</h2>;
+      case "Proveedores":
+        return <h2>Lista de Proveedores</h2>;
+      default:
+        return <h2>Seleccione una sección</h2>;
+    }
+  };
 
-      case "Añadir Cliente":
-        return (
-          <div>
-            <h2>Añadir nuevo cliente</h2>
-            <form onSubmit={handleSubmit}>
+  return (
+    <div style={styles.container}>
+      {/* Barra lateral de navegación */}
+      <aside style={styles.sidebar}>
+        <ul style={styles.menu}>
+          {["Clientes", "Pedidos", "Proyectos", "Albaranes", "Proveedores"].map(
+            (section) => (
+              <li
+                key={section}
+                onClick={() => setActiveSection(section)}
+                style={{
+                  ...styles.menuItem,
+                  backgroundColor:
+                    activeSection === section ? "#0070f3" : "transparent",
+                  color: activeSection === section ? "#fff" : "#000",
+                }}
+              >
+                {section}
+              </li>
+            )
+          )}
+        </ul>
+      </aside>
+
+      {/* Contenido principal */}
+      <main style={styles.content}>
+        {renderSection()}
+      </main>
+
+      {/* Modal para añadir cliente */}
+      {showAddClientModal && (
+        <div style={modalStyles.overlay}>
+          <div style={modalStyles.modal}>
+            <h2>Añadir Cliente</h2>
+            <form onSubmit={handleAddClient}>
               <input
                 type="text"
                 name="name"
                 value={newClient.name}
                 onChange={handleChange}
-                placeholder="Nombre del cliente"
+                placeholder="Nombre"
                 required
+                style={modalStyles.input}
               />
               <input
                 type="text"
@@ -205,6 +191,7 @@ export default function DashboardPage() {
                 onChange={handleChange}
                 placeholder="CIF"
                 required
+                style={modalStyles.input}
               />
               <input
                 type="text"
@@ -213,6 +200,7 @@ export default function DashboardPage() {
                 onChange={handleChange}
                 placeholder="Calle"
                 required
+                style={modalStyles.input}
               />
               <input
                 type="text"
@@ -221,14 +209,16 @@ export default function DashboardPage() {
                 onChange={handleChange}
                 placeholder="Número"
                 required
+                style={modalStyles.input}
               />
               <input
                 type="text"
                 name="postal"
                 value={newClient.postal}
                 onChange={handleChange}
-                placeholder="Código postal"
+                placeholder="Código Postal"
                 required
+                style={modalStyles.input}
               />
               <input
                 type="text"
@@ -237,6 +227,7 @@ export default function DashboardPage() {
                 onChange={handleChange}
                 placeholder="Ciudad"
                 required
+                style={modalStyles.input}
               />
               <input
                 type="text"
@@ -245,74 +236,37 @@ export default function DashboardPage() {
                 onChange={handleChange}
                 placeholder="Provincia"
                 required
+                style={modalStyles.input}
               />
-              <button type="submit" disabled={loading}>
-                {loading ? "Cargando..." : "Añadir Cliente"}
+              <button
+                type="submit"
+                style={{
+                  ...modalStyles.button,
+                  backgroundColor: "#0070f3",
+                  color: "#fff",
+                }}
+              >
+                Guardar Cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddClientModal(false)}
+                style={modalStyles.button}
+              >
+                Cancelar
               </button>
             </form>
           </div>
-        );
-
-      default:
-        return <p>Selecciona una opción del menú.</p>;
-    }
-  };
-
-  return (
-    <div style={styles.container}>
-      {/* Barra superior */}
-      <header style={styles.header}>
-        {username ? <span>Usuario: {username}</span> : <span>Cargando...</span>}
-      </header>
-
-      {/* Contenedor principal con menú lateral y contenido */}
-      <div style={styles.main}>
-        {/* Menú lateral */}
-        <aside style={styles.sidebar}>
-          <ul style={styles.menu}>
-            {["Clientes", "Proyectos", "Albaranes", "Proveedores"].map((menu) => (
-              <li
-                key={menu}
-                style={{
-                  ...styles.menuItem,
-                  backgroundColor: activeMenu === menu ? "#0070f3" : "transparent",
-                  color: activeMenu === menu ? "#fff" : "#333",
-                }}
-                onClick={() => setActiveMenu(menu)}
-              >
-                {menu}
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        {/* Contenido principal */}
-        <section style={styles.content}>
-          <h1>{activeMenu}</h1>
-          {renderContent()}
-        </section>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 const styles = {
   container: {
+    display: "flex",
     height: "100vh",
-    display: "flex",
-    flexDirection: "column" as const,
-  },
-  header: {
-    backgroundColor: "#0070f3",
-    color: "#fff",
-    padding: "10px 20px",
-    textAlign: "right" as const,
-    fontSize: "16px",
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "row" as const,
   },
   sidebar: {
     width: "200px",
@@ -329,37 +283,48 @@ const styles = {
     padding: "10px 15px",
     cursor: "pointer",
     borderRadius: "4px",
-    transition: "background-color 0.3s, color 0.3s",
+    margin: "5px 0",
+    transition: "all 0.3s",
   },
-  addButton: {
-    backgroundColor: "#0070f3",
-    color: "#fff",
-    border: "none",
+  content: {
+    flex: 1,
+    padding: "20px",
+  },
+};
+
+const modalStyles = {
+  overlay: {
+    position: "fixed" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  modal: {
+    backgroundColor: "#fff",
+    padding: "20px",
+    borderRadius: "8px",
+    maxWidth: "400px",
+    width: "100%",
+    boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+  },
+  input: {
+    width: "100%",
+    margin: "10px 0",
     padding: "10px",
     borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "14px",
-    marginTop: "20px",
-  },
-  clientsContainer: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  clientList: {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-    flex: 1,
-  },
-  clientItem: {
     border: "1px solid #ddd",
-    padding: "10px",
-    marginBottom: "10px",
-    borderRadius: "5px",
   },
-  clientLogo: {
-    maxWidth: "100px",
-    maxHeight: "50px",
+  button: {
+    marginTop: "10px",
+    padding: "10px",
+    borderRadius: "5px",
+    border: "none",
+    cursor: "pointer",
   },
 };
