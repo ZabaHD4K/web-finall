@@ -5,9 +5,12 @@ import { useState, useEffect } from "react";
 export default function DashboardPage() {
   const [activeSection, setActiveSection] = useState<string>("Clientes"); // Sección activa
   const [showAddClientModal, setShowAddClientModal] = useState(false); // Modal para añadir cliente
-  const [clients, setClients] = useState<any[]>([]); // Estado para almacenar los clientes
+  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false); // Modal para añadir material (pedido)
+  const [clients, setClients] = useState<any[]>([]); // Estado para clientes
+  const [materials, setMaterials] = useState<any[]>([]); // Estado para materiales (pedidos)
   const [loading, setLoading] = useState(false); // Estado de carga
   const [error, setError] = useState<string | null>(null); // Estado de error
+  const [userId, setUserId] = useState<string | null>(null); // ID del usuario autenticado
 
   // Datos del formulario para cliente
   const [newClient, setNewClient] = useState({
@@ -19,6 +22,21 @@ export default function DashboardPage() {
     city: "",
     province: "",
   });
+
+  // Datos del formulario para material (pedido)
+  const [newMaterial, setNewMaterial] = useState({
+    name: "",
+  });
+
+  // Cargar el ID del usuario desde el token JWT
+  useEffect(() => {
+    const token = localStorage.getItem("jwt");
+
+    if (token) {
+      const decodedToken = JSON.parse(atob(token.split(".")[1])); // Decodificar el token JWT
+      setUserId(decodedToken.userId); // Establecer el userId desde el token
+    }
+  }, []);
 
   // Cargar los clientes desde la API
   const fetchClients = async () => {
@@ -37,7 +55,7 @@ export default function DashboardPage() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Autenticación con el token
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -54,20 +72,44 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => {
-    if (activeSection === "Clientes") {
-      fetchClients(); // Cargar los clientes al mostrar la sección
-    }
-  }, [activeSection]);
+  // Cargar los pedidos desde la API
+  const fetchMaterials = async () => {
+    setLoading(true);
+    setError(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewClient((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    const token = localStorage.getItem("jwt");
+
+    if (!token) {
+      alert("No se ha encontrado el token de autenticación.");
+      return;
+    }
+
+    try {
+      const response = await fetch("https://bildy-rpmaya.koyeb.app/api/material", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudieron cargar los pedidos.");
+      }
+
+      const data = await response.json();
+
+      // Filtrar los pedidos solo para el usuario autenticado
+      const filteredData = data.filter((material: any) => material.userId === userId);
+      setMaterials(filteredData);
+    } catch (err) {
+      setError("Error al obtener los pedidos. Intenta nuevamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Añadir un nuevo cliente
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -137,6 +179,51 @@ export default function DashboardPage() {
     }
   };
 
+  // Añadir un nuevo pedido
+  const handleAddMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const token = localStorage.getItem("jwt");
+
+    if (!token) {
+      alert("No se ha encontrado el token de autenticación.");
+      return;
+    }
+
+    const materialData = {
+      name: newMaterial.name,
+      userId: userId, // Asignar el ID del usuario al pedido
+    };
+
+    try {
+      const response = await fetch("https://bildy-rpmaya.koyeb.app/api/material", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(materialData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al añadir el pedido.");
+      }
+
+      const data = await response.json();
+      alert("Pedido añadido con éxito.");
+      setShowAddMaterialModal(false);
+      setNewMaterial({
+        name: "",
+      });
+
+      // Refrescar la lista de pedidos
+      fetchMaterials();
+    } catch (error) {
+      alert(`Hubo un problema al añadir el pedido: ${error.message}`);
+    }
+  };
+
+  // Mostrar la sección activa
   const renderSection = () => {
     switch (activeSection) {
       case "Clientes":
@@ -174,17 +261,49 @@ export default function DashboardPage() {
           </div>
         );
       case "Pedidos":
-        return <h2>Lista de Pedidos</h2>;
-      case "Proyectos":
-        return <h2>Lista de Proyectos</h2>;
-      case "Albaranes":
-        return <h2>Lista de Albaranes</h2>;
-      case "Proveedores":
-        return <h2>Lista de Proveedores</h2>;
+        return (
+          <div>
+            <h2>Lista de Pedidos</h2>
+            {loading ? (
+              <p>Cargando pedidos...</p>
+            ) : error ? (
+              <p>{error}</p>
+            ) : (
+              <ul>
+                {materials.map((material) => (
+                  <li key={material._id}>
+                    <strong>{material.name}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              onClick={() => setShowAddMaterialModal(true)}
+              style={{
+                backgroundColor: "#0070f3",
+                color: "#fff",
+                border: "none",
+                padding: "10px",
+                borderRadius: "5px",
+                cursor: "pointer",
+              }}
+            >
+              Añadir Pedido
+            </button>
+          </div>
+        );
       default:
         return <h2>Seleccione una sección</h2>;
     }
   };
+
+  useEffect(() => {
+    if (activeSection === "Clientes") {
+      fetchClients(); // Cargar los clientes al mostrar la sección
+    } else if (activeSection === "Pedidos") {
+      fetchMaterials(); // Cargar los pedidos al mostrar la sección
+    }
+  }, [activeSection]);
 
   return (
     <div style={styles.container}>
@@ -215,72 +334,18 @@ export default function DashboardPage() {
         {renderSection()}
       </main>
 
-      {/* Modal para añadir cliente */}
-      {showAddClientModal && (
+      {/* Modal para añadir material (pedido) */}
+      {showAddMaterialModal && (
         <div style={modalStyles.overlay}>
           <div style={modalStyles.modal}>
-            <h2>Añadir Cliente</h2>
-            <form onSubmit={handleAddClient}>
+            <h2>Añadir Pedido</h2>
+            <form onSubmit={handleAddMaterial}>
               <input
                 type="text"
                 name="name"
-                value={newClient.name}
-                onChange={handleChange}
-                placeholder="Nombre"
-                required
-                style={modalStyles.input}
-              />
-              <input
-                type="text"
-                name="cif"
-                value={newClient.cif}
-                onChange={handleChange}
-                placeholder="CIF"
-                required
-                style={modalStyles.input}
-              />
-              <input
-                type="text"
-                name="street"
-                value={newClient.street}
-                onChange={handleChange}
-                placeholder="Calle"
-                required
-                style={modalStyles.input}
-              />
-              <input
-                type="text"
-                name="number"
-                value={newClient.number}
-                onChange={handleChange}
-                placeholder="Número"
-                required
-                style={modalStyles.input}
-              />
-              <input
-                type="text"
-                name="postal"
-                value={newClient.postal}
-                onChange={handleChange}
-                placeholder="Código Postal"
-                required
-                style={modalStyles.input}
-              />
-              <input
-                type="text"
-                name="city"
-                value={newClient.city}
-                onChange={handleChange}
-                placeholder="Ciudad"
-                required
-                style={modalStyles.input}
-              />
-              <input
-                type="text"
-                name="province"
-                value={newClient.province}
-                onChange={handleChange}
-                placeholder="Provincia"
+                value={newMaterial.name}
+                onChange={(e) => setNewMaterial({ name: e.target.value })}
+                placeholder="Nombre del material"
                 required
                 style={modalStyles.input}
               />
@@ -292,11 +357,11 @@ export default function DashboardPage() {
                   color: "#fff",
                 }}
               >
-                Guardar Cliente
+                Guardar Pedido
               </button>
               <button
                 type="button"
-                onClick={() => setShowAddClientModal(false)}
+                onClick={() => setShowAddMaterialModal(false)}
                 style={modalStyles.button}
               >
                 Cancelar
